@@ -90,6 +90,7 @@ class Payment protected constructor(
     fun approve(paymentKey: String, approvedAt: Instant, now: Instant) {
         check(status == PaymentStatus.REQUESTED) { "승인은 REQUESTED에서만: $status" }
         require(paymentKey.isNotBlank()) { "paymentKey 없음" }
+        require(paymentKey.length <= PAYMENT_KEY_MAX) { "paymentKey ${PAYMENT_KEY_MAX}자 초과" }
         this.status = PaymentStatus.APPROVED
         this.paymentKey = paymentKey
         this.approvedAt = approvedAt
@@ -107,14 +108,15 @@ class Payment protected constructor(
     }
 
     /** 판정 순서: 금액 형식 → 상태 → 남은 금액. PG 호출 전 우리 스냅샷으로 검사한다(check-then-act) */
-    fun assertCancelable(cancelAmount: Long) {
+    fun assertCancelable(cancelAmount: Long, reason: String? = null) {
         if (cancelAmount < 1) throw PaymentException(ErrorCode.INVALID_REQUEST, "cancelAmount는 1 이상")
+        assertCancelReason(reason)
         if (!status.cancelable) throw PaymentException(ErrorCode.PAYMENT_NOT_CANCELABLE)
         if (cancelAmount > remainingAmount()) throw PaymentException(ErrorCode.CANCEL_AMOUNT_EXCEEDED)
     }
 
     fun cancel(cancelAmount: Long, reason: String?, canceledAt: Instant) {
-        assertCancelable(cancelAmount)
+        assertCancelable(cancelAmount, reason)
         cancelHistory.add(PaymentCancel(this, cancelAmount, reason, canceledAt))
         canceledAmount += cancelAmount
         status = if (canceledAmount == amount) PaymentStatus.CANCELED else PaymentStatus.PARTIALLY_CANCELED
@@ -123,11 +125,21 @@ class Payment protected constructor(
 
     companion object {
         const val ORDER_ID_MAX = 64
+        const val PAYMENT_KEY_MAX = 64
+        const val CANCEL_REASON_MAX = 200
+
+        /** 영문 · 숫자 · `_` · `-` 1~64자 — PG 주문번호 조회(`/orders/{orderId}`) 경로에 그대로 쓸 수 있는 문자만 */
+        val ORDER_ID_PATTERN = Regex("[A-Za-z0-9_-]{1,$ORDER_ID_MAX}")
         const val FAILURE_CODE_MAX = 50
         const val FAILURE_MESSAGE_MAX = 200
 
+        /** 사유는 payment_cancel.reason(200자)에 저장된다 — API 밖 진입점도 PG 호출 전에 거른다(PG 취소 뒤 커밋 실패 방지) */
+        fun assertCancelReason(reason: String?) {
+            if (reason != null && reason.length > CANCEL_REASON_MAX) throw PaymentException(ErrorCode.INVALID_REQUEST, "reason은 ${CANCEL_REASON_MAX}자 이하")
+        }
+
         fun request(orderId: String, userId: Long, amount: Long, requestedAt: Instant): Payment {
-            if (orderId.isBlank() || orderId.length > ORDER_ID_MAX) throw PaymentException(ErrorCode.INVALID_REQUEST, "orderId")
+            if (!ORDER_ID_PATTERN.matches(orderId)) throw PaymentException(ErrorCode.INVALID_REQUEST, "orderId")
             if (userId < 1) throw PaymentException(ErrorCode.INVALID_REQUEST, "userId")
             if (amount < 1) throw PaymentException(ErrorCode.INVALID_REQUEST, "amount")
             return Payment(orderId, userId, amount, requestedAt)

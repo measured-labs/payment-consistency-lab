@@ -56,6 +56,18 @@ class ApiErrorContractTest {
     }
 
     @Test
+    fun `orderId는 경로에 쓸 수 있는 문자만 - 아니면 400 · PG 미호출`() {
+        listOf("a/b", "a b", "a%2Fb", "a.b", "a?b", "주문1").forEach {
+            val res = approveWith("""{"orderId":"$it","amount":1000,"cardNumber":"4111111111111111"}""")
+            assertThat(res.status).`as`(it).isEqualTo(400)
+            assertThat(res.body["code"].asText()).isEqualTo("INVALID_REQUEST")
+        }
+        assertThat(fakePg.approveCalls.get()).isZero()
+        assertThat(approveWith("""{"orderId":"Ab_9-z","amount":1000,"cardNumber":"4111111111111111"}""").status).isEqualTo(201)
+        assertThat(fakePg.approveCalls.get()).isEqualTo(1)
+    }
+
+    @Test
     fun `부호 붙은 숫자는 양의 정수가 아니다 - 경로 id · X-User-Id`() {
         val res = app.get("/payments/+5")
         assertThat(res.status).isEqualTo(400)

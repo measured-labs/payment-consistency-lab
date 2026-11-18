@@ -1,6 +1,7 @@
 package com.jun.labs.paymentconsistency.infra.pg
 
 import com.jun.labs.paymentconsistency.domain.ErrorCode
+import com.jun.labs.paymentconsistency.domain.Payment
 import com.jun.labs.paymentconsistency.domain.PaymentException
 import org.springframework.http.MediaType
 import org.springframework.http.client.JdkClientHttpRequestFactory
@@ -45,6 +46,10 @@ class RestPgClient(
                         val approvedAt = body?.approvedAt
                         if (paymentKey.isNullOrBlank() || approvedAt == null) {
                             throw PaymentException(ErrorCode.PG_UNAVAILABLE, "PG 승인 응답에 paymentKey · approvedAt 없음")
+                        }
+                        // payment.payment_key는 64자 — 넘는 키는 받아들이면 커밋에서 DB 오류(500)가 난다. PG 응답 오류로 분류한다
+                        if (paymentKey.length > Payment.PAYMENT_KEY_MAX) {
+                            throw PaymentException(ErrorCode.PG_UNAVAILABLE, "PG 승인 응답 paymentKey ${paymentKey.length}자(최대 ${Payment.PAYMENT_KEY_MAX})")
                         }
                         PgApproveResult.Approved(paymentKey, approvedAt.toInstant())
                     }

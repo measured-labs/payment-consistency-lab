@@ -1,6 +1,7 @@
 package com.jun.labs.paymentconsistency.api
 
 import com.jun.labs.paymentconsistency.domain.ErrorCode
+import com.jun.labs.paymentconsistency.domain.Payment
 import com.jun.labs.paymentconsistency.domain.PaymentException
 import com.jun.labs.paymentconsistency.service.ApprovePaymentCommand
 import com.jun.labs.paymentconsistency.service.CancelPaymentCommand
@@ -15,7 +16,7 @@ data class ApprovePaymentRequest(
         val orderId = orderId
         val amount = amount
         val cardNumber = cardNumber
-        if (orderId.isNullOrBlank() || orderId.length > ORDER_ID_MAX) throw invalid("orderId는 공백 아님 · 1~${ORDER_ID_MAX}자")
+        if (orderId == null || !Payment.ORDER_ID_PATTERN.matches(orderId)) throw invalid("orderId는 영문 · 숫자 · _ · - 1~${ORDER_ID_MAX}자")
         if (amount == null || amount < 1) throw invalid("amount는 1 이상의 정수")
         if (cardNumber.isNullOrBlank() || cardNumber.length > CARD_NUMBER_MAX) throw invalid("cardNumber는 공백 아님 · 1~${CARD_NUMBER_MAX}자")
         return ApprovePaymentCommand(orderId, userId, amount, cardNumber)

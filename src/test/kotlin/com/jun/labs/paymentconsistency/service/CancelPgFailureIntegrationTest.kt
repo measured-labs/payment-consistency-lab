@@ -42,6 +42,9 @@ class CancelPgFailureIntegrationTest {
     @Autowired
     lateinit var fakePg: FakePgClient
 
+    @Autowired
+    lateinit var cancelUseCase: CancelPaymentUseCase
+
     private val app by lazy { Http(rest) }
 
     @AfterEach
@@ -116,6 +119,18 @@ class CancelPgFailureIntegrationTest {
         assertThat(app.post("/payments/${Long.MAX_VALUE}/cancel", null).body["code"].asText()).isEqualTo("PAYMENT_NOT_FOUND")
         assertThat(app.post("/payments/$id/cancel", """{"cancelAmount":0}""").body["code"].asText()).isEqualTo("INVALID_REQUEST")
         assertThat(fakePg.lastCancel).isNull()
+    }
+
+    @Test
+    fun `API 밖 진입점의 200자 넘는 취소 사유는 PG 호출 전에 INVALID_REQUEST`() {
+        val id = approvedPaymentId(10_000)
+        val error = runCatching { cancelUseCase.cancel(CancelPaymentCommand(id, 1_000, "r".repeat(201))) }.exceptionOrNull()
+        assertThat((error as PaymentException).errorCode).isEqualTo(ErrorCode.INVALID_REQUEST)
+        assertThat(fakePg.lastCancel).isNull()
+        assertUnchanged(id)
+        // 입력 검증이 존재 판정보다 먼저다
+        val missing = runCatching { cancelUseCase.cancel(CancelPaymentCommand(Long.MAX_VALUE, null, "r".repeat(201))) }.exceptionOrNull()
+        assertThat((missing as PaymentException).errorCode).isEqualTo(ErrorCode.INVALID_REQUEST)
     }
 
     class FakePgClient : PgClient {

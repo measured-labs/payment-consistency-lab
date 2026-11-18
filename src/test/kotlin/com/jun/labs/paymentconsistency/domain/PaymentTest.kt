@@ -116,4 +116,33 @@ class PaymentTest {
     fun `취소 금액 0 이하는 INVALID_REQUEST`() {
         assertThat(errorCodeOf { approved().assertCancelable(0) }).isEqualTo(ErrorCode.INVALID_REQUEST)
     }
+
+    @Test
+    fun `orderId는 영문 · 숫자 · _ · - 1~64자만`() {
+        listOf("a/b", "a b", "a%2Fb", "a.b", "a?b", "주문1", " o", "o\n").forEach {
+            assertThat(errorCodeOf { Payment.request(it, 1, 1, t0) }).`as`(it).isEqualTo(ErrorCode.INVALID_REQUEST)
+        }
+        assertThat(Payment.request("Ab_9-z", 1, 1, t0).orderId).isEqualTo("Ab_9-z")
+        assertThat(Payment.request("o".repeat(64), 1, 1, t0).orderId).hasSize(64)
+    }
+
+    @Test
+    fun `paymentKey는 64자까지만 받는다`() {
+        val p = Payment.request("order-1", 1, 1_000, t0)
+        assertThatThrownBy { p.approve("k".repeat(65), t1, t1) }.isInstanceOf(IllegalArgumentException::class.java)
+        assertThat(p.status).isEqualTo(PaymentStatus.REQUESTED)
+        p.approve("k".repeat(64), t1, t1)
+        assertThat(p.status).isEqualTo(PaymentStatus.APPROVED)
+    }
+
+    @Test
+    fun `취소 사유 200자 초과는 INVALID_REQUEST · 상태 불변`() {
+        val p = approved(10_000)
+        assertThat(errorCodeOf { p.assertCancelable(1_000, "r".repeat(201)) }).isEqualTo(ErrorCode.INVALID_REQUEST)
+        assertThat(errorCodeOf { p.cancel(1_000, "r".repeat(201), t1) }).isEqualTo(ErrorCode.INVALID_REQUEST)
+        assertThat(p.canceledAmount).isZero()
+        assertThat(p.cancels).isEmpty()
+        p.cancel(1_000, "r".repeat(200), t1)
+        assertThat(p.canceledAmount).isEqualTo(1_000)
+    }
 }

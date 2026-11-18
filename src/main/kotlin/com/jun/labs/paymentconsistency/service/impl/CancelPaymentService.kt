@@ -1,6 +1,7 @@
 package com.jun.labs.paymentconsistency.service.impl
 
 import com.jun.labs.paymentconsistency.domain.ErrorCode
+import com.jun.labs.paymentconsistency.domain.Payment
 import com.jun.labs.paymentconsistency.domain.PaymentException
 import com.jun.labs.paymentconsistency.domain.repository.PaymentRepository
 import com.jun.labs.paymentconsistency.infra.pg.PgCancelRequest
@@ -26,11 +27,12 @@ class CancelPaymentService(
 
     @Transactional
     override fun cancel(command: CancelPaymentCommand): PaymentResult {
+        Payment.assertCancelReason(command.reason) // 입력 검증이 존재 · 상태 판정보다 먼저(ADR-000 §6)
         val payment = paymentRepository.findById(command.paymentId)
             .orElseThrow { PaymentException(ErrorCode.PAYMENT_NOT_FOUND) }
         if (!payment.status.cancelable) throw PaymentException(ErrorCode.PAYMENT_NOT_CANCELABLE)
         val cancelAmount = command.cancelAmount ?: payment.remainingAmount()
-        payment.assertCancelable(cancelAmount)
+        payment.assertCancelable(cancelAmount, command.reason)
 
         val paymentKey = checkNotNull(payment.paymentKey) { "승인된 결제에 paymentKey 없음: ${payment.id}" }
         when (val result = pgClient.cancel(paymentKey, PgCancelRequest(cancelAmount, command.reason))) {
