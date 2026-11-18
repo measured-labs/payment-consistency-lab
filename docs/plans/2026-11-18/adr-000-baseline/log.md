@@ -25,6 +25,8 @@
 | 2026-11-18 17:3x | 루프 2 수정: 5xx 응답 message = 코드 고정 문구(세부는 WARN 로그) · 502 문구 단언 · 테스트 Hikari 풀 4(컨텍스트 13 × 10 > max_connections 100) · 주석 정정 · toString 카드번호 단언 · Spring 표준 5xx 로그 · 405 Allow 헤더 유지 + 단언 · ADR §6 415 · 406 예외 문구 · 전체 `cleanTest test --continue`: 앱 14클래스 90/0/0 · mock-pg 29/0/0 · 10분 넘은 XML 0 | green |
 | 2026-11-18 17:4x | post-fix 재점검(codex): PL2-1~6 해결 · 신규 없음 → 리뷰 마감(2루프 + 재점검) · 최종 compose 스모크: drop 1.0 → 504 본문 고정 문구 · WARN 로그 · 로그 속 카드번호 0 · 정상 승인 201 · DELETE → 405 + Allow 헤더 · 정리(컨테이너 0) | 검증 완료 |
 | 2026-11-18 17:5x | 코드 커밋 58ca09d(58파일 — docs 제외) · ADR-000 채택 · §10.1 결과 · NEXT.md · measurement-log 신설 | docs 커밋 |
+| 2026-11-18 19:2x | 병합 전 도메인 재리뷰(사용자: '기본 도메인 설계 문제없는지 확인') — 미러 scratchpad/paydom/mirror(5ddab37 · docs/plans · measurement-log 제외 · compose · yml 비밀번호 값 미러에서만 REDACTED) · codex high: medium 3 ∥ Opus 워커(117,712 토큰): high 1 · medium 3 · low 4 · 종합 DR-1~9 · DR-1(갱신 유실) 메인 코드 확인(CancelPaymentService.kt:29-38 · Payment.kt:116-121 · @Version 없음) · 사용자 결정 '코드 지적 둘 다 지금 고침'(명세 Q/A 12) | 수정 착수 |
+| 2026-11-18 19:5x | 재리뷰 수정: 코드(orderId 패턴 · paymentKey 64자 분류 · 사유 200자 도메인 검사 + 서비스 첫 단계) · 테스트 +7(도메인 3 · API 1 · 서비스 1(+없는 결제 단언) · PG 클라이언트 2) · red 확인(수정 되돌리면 새 테스트 3개만 실패 · 원복) · 전체 `cleanTest test --continue`: 앱 97/0/0 · mock-pg 29/0/0 · 문서 ADR §2 · §2.1 · §6 · §9 · NEXT · post-fix 재점검 codex 2회(1차 신규 3 → 채택 2 · 기각 1 · 2차: F2 해결 · 문장 조건 1 → 반영) | 검증 완료 |
 
 ## 리뷰 ledger
 
@@ -48,6 +50,18 @@
 | PL2-4 | 2 | opus | ApiExceptionHandler.kt:39-42 | 채택 — Spring 표준 5xx 무로그 | fixed |
 | PL2-5 | 2 | opus | ApiExceptionHandler.kt:41 | 채택 — 405 Allow 헤더 버림 | fixed |
 | PL2-6 | 2 | opus | ApiExceptionHandler.kt:34 · ADR §6 | 채택 — 406 보장 서술 · 415 예외 문서 | fixed |
+| DR-1 | 재리뷰 | opus | CancelPaymentService.kt:29-38 · Payment.kt:116-121 · ADR :61 · :249 | 채택(문서) — 동시 부분 취소 = 갱신 유실(canceled_amount ≠ Σ취소 행 · PG와 상태 불일치 · PG가 못 막음) · ADR §2.1 · §9 정정 · ADR-001 검증 항목 | fixed |
+| DR-2 | 재리뷰 | codex · opus | PaymentCancel.kt:17-43 · PgClient.kt:30-34 · PgPaymentStore.kt:11 | 채택(문서) — 취소 PG 키 · PG 취소 시각 없음 → §2 '취소 내역 분리 이유'를 한계로 · NEXT(Q5 ADR 선행) | fixed |
+| DR-3 | 재리뷰 | opus | Payment.kt:116-121 · ADR :247 | 채택(문서) — 취소 요청 상태 없음 · 취소 결과 불명 §9 행 추가 | fixed |
+| DR-4 | 재리뷰 | opus | PaymentRequests.kt:18 · Payment.kt:130 · MockPgController.kt:50 | 채택(코드) — orderId 문자 집합(사용자 결정) | fixed |
+| DR-5 | 재리뷰 | codex | Payment.kt:90-96 · RestPgClient.kt:42-49 · V1:8 | 채택(코드) — paymentKey 64자 초과 = PG_UNAVAILABLE | fixed |
+| DR-6 | 재리뷰 | opus | Payment.kt:116-118 · PaymentCancel.kt:37 | 채택(코드) — 취소 사유 200자 도메인 검사(PG 호출 전) | fixed |
+| DR-7 | 재리뷰 | opus | Payment.kt:104 · ADR :171 | 채택(문서) — failureCode 50자 자르기 ADR 명시 | fixed |
+| DR-8 | 재리뷰 | codex · opus | PaymentCancel.kt:17 · PaymentRepository.kt:6 | 이월 — internal 생성자 · delete 노출: 취소 리포지토리 없음 · 루트 컬렉션 밖 저장 경로 없음(실질 우회 아님) · 호출처 0 → NEXT | deferred |
+| DR-9 | 재리뷰 | opus | RestPgClient.kt:89-97 | 이월 — 연결 타임아웃 502 분류 무시험(추측) → 결정적 주입 ADR(PL1-7과 같이) · NEXT | deferred |
+| DR-P1 | post-fix | codex | ADR-000 §9 취소 결과 불명 행 | 채택 — 재취소 결과를 금액 조건으로(잔액 이하 = 이중 취소 · 초과 = 409 · 생략 = 우리 남은 금액이라 409) — 2차 재점검 지적(F1-R)까지 반영 | fixed |
+| DR-P2 | post-fix | codex | CancelPaymentService.kt:29 | 채택 — 사유 검사를 서비스 첫 단계로(입력 검증 → 존재 → 상태) · 테스트 추가 · 2차 재점검 해결 확인 | fixed |
+| DR-P3 | post-fix | codex | RestPgClientPaymentKeyTest.kt:37 | 기각 — PG_UNAVAILABLE → 502 · 롤백은 기존 PG 5xx 통합 테스트가 검증 · 새 계약(64자 초과 = PG_UNAVAILABLE 분류)은 새 테스트가 검증 | rejected |
 
 ## 생략한 검증
 
