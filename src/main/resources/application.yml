@@ -1,6 +1,20 @@
 spring:
   application:
     name: payment-consistency-lab
+  # 로컬 compose 기본값(docker-compose.yml) — 다른 DB는 DB_URL · DB_USERNAME · DB_PASSWORD로
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/payment}
+    username: ${DB_USERNAME:payment}
+    password: ${DB_PASSWORD:payment}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
 
-server:
-  port: 8102
+# server.port(8102)는 PaymentConsistencyApplication의 기본 속성 — 이 파일에 두지 않는다
+
+payment:
+  pg:
+    base-url: ${PG_BASE_URL:http://localhost:8110}
+    connect-timeout: 3s
+    read-timeout: 10s

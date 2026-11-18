@@ -1,0 +1,48 @@
+# 로컬 스모크(ADR-000 · 명세 §5): postgres · 흉내 PG · 앱
+# 장애 주입은 셸 변수로 바꾼다(예: MOCKPG_FAULT_DROP_RATE=1.0 docker compose up) — 기본값 모두 0.
+# 컨테이너 쪽 이름은 Spring 환경 변수 규칙(점 → _, 대시 제거, 대문자)
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: payment
+      POSTGRES_USER: payment
+      POSTGRES_PASSWORD: payment
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payment -d payment"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mock-pg:
+    build:
+      context: .
+      dockerfile: mock-pg/Dockerfile
+    environment:
+      MOCKPG_REJECTDUPLICATEORDERID: ${MOCKPG_REJECT_DUPLICATE_ORDER_ID:-true}
+      MOCKPG_FAULT_LATENCYMINMS: ${MOCKPG_FAULT_LATENCY_MIN_MS:-0}
+      MOCKPG_FAULT_LATENCYMAXMS: ${MOCKPG_FAULT_LATENCY_MAX_MS:-0}
+      MOCKPG_FAULT_ERRORRATE: ${MOCKPG_FAULT_ERROR_RATE:-0}
+      MOCKPG_FAULT_DROPRATE: ${MOCKPG_FAULT_DROP_RATE:-0}
+      MOCKPG_FAULT_DROPHOLDMS: ${MOCKPG_FAULT_DROP_HOLD_MS:-15000}
+    ports:
+      - "8110:8110"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/payment
+      DB_USERNAME: payment
+      DB_PASSWORD: payment
+      PG_BASE_URL: http://mock-pg:8110
+    ports:
+      - "8102:8102"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-pg:
+        condition: service_started
